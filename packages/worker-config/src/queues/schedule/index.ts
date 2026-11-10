@@ -38,6 +38,7 @@ export const ScheduleJobData = {
   maintainLeaderboardRankings: "maintainLeaderboardRankings",
   scanCoexistRuns: "scanCoexistRuns",
   scanContactScans: "scanContactScans",
+  pollSmtpInboxes: "pollSmtpInboxes",
   scanAiHandoverBulkRuns: "scanAiHandoverBulkRuns",
   reconcileMetaCatalogSyncs: "reconcileMetaCatalogSyncs",
   purgeCoexistStaging: "purgeCoexistStaging",
@@ -264,6 +265,12 @@ export type ScheduleJobScanContactScans = {
   data: Record<string, never>
 }
 
+/** Enqueues one IMAP poll per due SMTP inbox. */
+export type ScheduleJobPollSmtpInboxes = {
+  type: typeof ScheduleJobData.pollSmtpInboxes
+  data: Record<string, never>
+}
+
 export type ScheduleJobScanAiHandoverBulkRuns = {
   type: typeof ScheduleJobData.scanAiHandoverBulkRuns
   data: Record<string, never>
@@ -462,6 +469,7 @@ export type ScheduleJobData =
   | ScheduleJobMaintainLeaderboardRankings
   | ScheduleJobScanCoexistRuns
   | ScheduleJobScanContactScans
+  | ScheduleJobPollSmtpInboxes
   | ScheduleJobScanAiHandoverBulkRuns
   | ScheduleJobReconcileMetaCatalogSyncs
   | ScheduleJobPurgeCoexistStaging
