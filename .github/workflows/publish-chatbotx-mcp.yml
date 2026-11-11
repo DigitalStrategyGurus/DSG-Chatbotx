@@ -47,6 +47,7 @@ concurrency:
 
 jobs:
   publish:
+    if: github.repository == 'ChatbotXIO/ChatbotX'  # forkpatch(0): niet publiceren vanuit DSG-fork
     name: Publish chatbotx-mcp
     runs-on: ubuntu-latest
     timeout-minutes: 15

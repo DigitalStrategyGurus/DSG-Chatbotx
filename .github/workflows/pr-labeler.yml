@@ -13,6 +13,7 @@ concurrency:
 
 jobs:
   label:
+    if: github.repository == 'ChatbotXIO/ChatbotX'  # forkpatch(0): niet publiceren vanuit DSG-fork
     runs-on: ubuntu-latest
     steps:
       - name: Apply label from PR title
