@@ -47,6 +47,11 @@ export const PUBLIC_ROUTES = [
   // member of the workspace that started it. `sessionId` itself is the
   // capability token (see `app/connect/[sessionId]/page.tsx`'s doc comment).
   "/connect",
+  // DSG forkpatch 5: server-to-server provisioning API. No browser session is
+  // involved; the route authenticates itself with `CHATBOTX_PROVISIONING_SECRET`
+  // (constant-time bearer compare, fail-closed when unset). The reverse proxy in
+  // front of the builder must refuse `/internal/*` from the public internet.
+  "/internal",
 ]
 
 /**

@@ -85,4 +85,13 @@ describe("isPublicRoute", () => {
     expect(isPublicRoute("/connect")).toBe(true)
     expect(isPublicRoute("/connect/sess-abc123")).toBe(true)
   })
+
+  test("/internal is public so the provisioning route can answer with its own bearer check (DSG forkpatch 5)", () => {
+    // No session exists for a server-to-server caller; redirecting it to
+    // sign-in would hand the integration an HTML page. The route itself
+    // answers 401/503 and the reverse proxy keeps `/internal/*` off the
+    // public internet.
+    expect(isPublicRoute("/internal/provisioning/workspaces")).toBe(true)
+    expect(isPublicRoute("/internals")).toBe(false)
+  })
 })

@@ -24,6 +24,11 @@ export const env = createEnv({
     REALTIME_PROXY_URL: z.url().optional().default("http://localhost:1999"),
     MCP_PROXY_URL: z.url().optional().default("http://localhost:3333"),
     MCP_PUBLIC_URL: z.url().optional(),
+    // DSG forkpatch 5: bearer secret for `POST /internal/provisioning/workspaces`.
+    // Unset or shorter than 32 characters = the endpoint answers 503 to everyone.
+    // Minimum length is enforced at request time, not here, so a bad value
+    // disables the endpoint instead of taking the whole builder down at boot.
+    CHATBOTX_PROVISIONING_SECRET: z.string().optional(),
   },
   client: {
     NEXT_PUBLIC_BUILDER_URL: z.url(),
