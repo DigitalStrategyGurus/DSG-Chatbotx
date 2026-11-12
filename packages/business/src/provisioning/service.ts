@@ -25,6 +25,7 @@ import { generateWorkspaceToken } from "../workspace-api-token/credentials"
 import { workspaceApiTokenService } from "../workspace-api-token/service"
 import {
   workspaceMemberCacheTag,
+  workspaceMemberService,
   workspaceRosterCacheTag,
 } from "../workspace-member/service"
 
@@ -62,6 +63,69 @@ export type ProvisionWorkspaceResult =
 const normalizeEmail = (email: string): string => email.trim().toLowerCase()
 
 class ProvisioningService extends BaseService {
+  /** Mint an additional token; never revoke or recover an existing token. */
+  async issueWorkspaceToken(props: {
+    actorId: string
+    workspaceId: string
+    ownerEmail: string
+    token: ProvisionWorkspaceInput["token"]
+  }): Promise<
+    | { kind: "created"; workspaceId: string; token: string }
+    | { kind: "not_found" }
+  > {
+    const result = await db.transaction(async (tx) => {
+      const owner = await userRepository.findIdByEmail(
+        {
+          email: normalizeEmail(props.ownerEmail),
+          tenantId: ROOT_TENANT_ID,
+        },
+        tx,
+      )
+      if (!owner) {
+        return
+      }
+      const membership = await workspaceMemberService.findMembership({
+        workspaceId: props.workspaceId,
+        userId: owner.id,
+        tx,
+      })
+      const workspace = membership?.workspace
+      if (
+        membership?.role !== "owner" ||
+        !workspace ||
+        workspace.ownerId !== owner.id ||
+        !workspace.isActive ||
+        workspace.scheduledDeletionAt ||
+        workspace.purgeStartedAt
+      ) {
+        return
+      }
+      const { token, tokenHash, tokenPrefix } = await generateWorkspaceToken()
+      await workspaceApiTokenService.createToken({
+        workspaceId: workspace.id,
+        ...props.token,
+        tokenHash,
+        tokenPrefix,
+        tx,
+      })
+      return { kind: "created" as const, workspaceId: workspace.id, token }
+    })
+    if (!result) {
+      return { kind: "not_found" }
+    }
+    // createToken suppresses its own audit in a caller-owned transaction.
+    await dispatchAuditRecordSafely(
+      {
+        userId: props.actorId,
+        workspaceId: result.workspaceId,
+        action: "create",
+        detail: `created workspace API token through the provisioning recovery API (${props.token.permission})`,
+      },
+      "Provisioning: failed to record token recovery audit after commit",
+    )
+    return result
+  }
+
   /**
    * Server-to-server provisioning: an owner account, its workspace with the
    * owner membership, and one workspace API token.

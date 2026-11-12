@@ -16,6 +16,7 @@ met prefix `forkpatch(<n>):` op een branch `dsg/v<upstream-versie>`.
 |---|---|---|
 | 0 | Publish- en labeler-workflows alleen in upstream (`github.repository`-guard) | dsg.0 |
 | 5 | Interne provisioning-API `POST /internal/provisioning/workspaces` (S19 ronde A) | dsg.1 |
+| 5b | Tokenherstel voor bestaande workspace (Unibox) | dsg.2 |
 | 7 | Inkomende berichten (OMNI-T0027) | gepland |
 
 ## Forkpatch 5: provisioning-API
@@ -87,6 +88,50 @@ is niet geraakt. De rest van de patch staat in nieuwe bestanden:
 `packages/business/src/provisioning/`, `packages/business/__tests__/provisioning-service.test.ts`,
 `apps/builder/src/app/internal/`, `apps/builder/src/features/provisioning/` en
 `apps/builder/__tests__/internal-provisioning-workspaces-route.test.ts`.
+
+## Forkpatch 5b: tokenherstel voor bestaande workspace
+
+Herstelpad voor Unibox wanneer het eenmalige token uit patch 5 verloren is.
+
+- `POST /internal/provisioning/workspaces/{workspaceId}/tokens`, met dezelfde
+  `Authorization: Bearer <CHATBOTX_PROVISIONING_SECRET>` en constant-time auth via
+  `provisioning-secret.ts`. Ontbrekend/leeg/geheim korter dan 32 tekens: `503
+  {error:"provisioning_disabled"}`; verkeerd of ontbrekend bearer: `401
+  {error:"unauthorized"}`.
+- Body `{ownerEmail, tokenName, scopes, permission?}` hergebruikt met `.pick()` de
+  veldschema's van patch 5: e-mail trim/lowercase, tokennaam 1..100 tekens,
+  niet-lege scope-lijst of `"all"` (NULL), `full` (standaard) of `read_only`.
+  Workspace-ID is een positief PostgreSQL-bigint in decimale notatie.
+- `201 {workspaceId, token}` geeft een nieuw token eenmalig terug; alleen de hash
+  wordt opgeslagen. Bestaande tokens blijven geldig. `createToken` bewaakt ook
+  hier de bestaande limiet van tien tokens.
+- `404 {error:"workspace_not_found"}` voor onbekende, inactieve of verwijderde
+  workspace, onbekende root-tenantgebruiker of een gebruiker die geen eigenaar is.
+  `workspaceMemberService.findMembership` leest het lidmaatschap en de workspace
+  ongecachet; zowel de rol `owner` als `workspace.ownerId` moeten kloppen.
+  Alleen lid zijn volstaat niet. Geen kale SQL of nieuwe repository.
+- `400` voor ongeldige body/JSON of workspace-ID; overige methoden `405` met
+  `Allow: POST`. Elke respons heeft `Cache-Control: no-store`.
+- Tokencreatie gebeurt in een transactie; het auditrecord volgt na commit met
+  `SYSTEM_ACTOR`. Token, hash en requestbody komen niet in het auditrecord of de
+  routelogging. Geen migratie; `packages/database` en worker blijven ongewijzigd.
+- Dit endpoint blijft uitsluitend intern, achter dezelfde reverse-proxyblokkade
+  als patch 5. Het is uitgezonderd van de publieke workspace-token-API (invariant
+  23: API-tokens mogen geen API-tokens uitgeven).
+
+Geraakte upstream-bestanden (uitsluitend toegevoegde regels):
+
+| Bestand | Regels |
+|---|---|
+| `apps/builder/__tests__/proxy-public-routes.test.ts` | +7 / -0 |
+
+Aanvulling op fork-only patch 5: `packages/business/src/provisioning/service.ts`
+(+64 / -0). Nieuwe fork-only bestanden: tokenroute onder
+`apps/builder/src/app/internal/provisioning/workspaces/[workspaceId]/tokens/`,
+`apps/builder/src/features/provisioning/schema/issue-workspace-token-request.ts`,
+`packages/business/__tests__/provisioning-token-service.test.ts` en
+`apps/builder/__tests__/internal-provisioning-tokens-route.test.ts`.
+Bestaande upstream-regels zijn niet gewijzigd of verwijderd.
 
 ## Upstream bijwerken
 

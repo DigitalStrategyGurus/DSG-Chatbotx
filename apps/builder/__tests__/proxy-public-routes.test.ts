@@ -95,3 +95,10 @@ describe("isPublicRoute", () => {
     expect(isPublicRoute("/internals")).toBe(false)
   })
 })
+
+// DSG forkpatch 5b: nested recovery endpoint is session-free as well.
+test("nested provisioning token recovery is public", () => {
+  expect(isPublicRoute("/internal/provisioning/workspaces/123/tokens")).toBe(
+    true,
+  )
+})
