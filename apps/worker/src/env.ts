@@ -178,6 +178,14 @@ export const env = createEnv({
       .min(1)
       .max(1000)
       .default(10),
+
+    // DSG forkpatch 7: forward inbound channel messages to Unibox. Plain
+    // optional strings on purpose: a missing, malformed or short value must
+    // switch forwarding off (fail closed), never stop the worker from booting.
+    // Validated in events/message/handlers/forward-inbound-config.ts.
+    CHATBOTX_INBOUND_FORWARD_URL: z.string().optional(),
+    CHATBOTX_INBOUND_FORWARD_SECRET: z.string().optional(),
+    CHATBOTX_INBOUND_FORWARD_CHANNELS: z.string().optional(),
   },
   runtimeEnv: process.env,
   skipValidation: process.env.SKIP_ENV_CHECK === "true",

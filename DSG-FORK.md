@@ -17,7 +17,7 @@ met prefix `forkpatch(<n>):` op een branch `dsg/v<upstream-versie>`.
 | 0 | Publish- en labeler-workflows alleen in upstream (`github.repository`-guard) | dsg.0 |
 | 5 | Interne provisioning-API `POST /internal/provisioning/workspaces` (S19 ronde A) | dsg.1 |
 | 5b | Tokenherstel voor bestaande workspace (Unibox) | dsg.2 |
-| 7 | Inkomende berichten (OMNI-T0027) | gepland |
+| 7 | Inkomende kanaalberichten doorsturen naar Unibox (S20) | dsg.3 |
 
 ## Forkpatch 5: provisioning-API
 
@@ -132,6 +132,57 @@ Aanvulling op fork-only patch 5: `packages/business/src/provisioning/service.ts`
 `packages/business/__tests__/provisioning-token-service.test.ts` en
 `apps/builder/__tests__/internal-provisioning-tokens-route.test.ts`.
 Bestaande upstream-regels zijn niet gewijzigd of verwijderd.
+
+## Forkpatch 7: inkomende berichten naar Unibox
+
+Een bericht dat een contact op een kanaal stuurt (standaard alleen WhatsApp) gaat binnen
+enkele seconden ondertekend naar Unibox, zodat Odaveth het ziet zonder ChatbotX aan te spreken.
+
+- Bron: het interne event `message:received` op de message-eventbus. Doorgestuurd wordt
+  alleen `origin: "inbound"` met `messageId` op een toegestaan kanaal; echo's van eigen
+  verzendingen en delivery-statusevents vallen weg. Reacties op posts (`Message.type` ≠
+  `message`) en uitgaande berichten slaat de job over. Kanaal `api` nooit (lus met de
+  bestaande callback). WhatsApp-emoji-reacties en Coexistence-echo's
+  (`smb_message_echoes`) vuren geen `message:received` en gaan dus niet mee.
+- Listener `inbound-forward` (`apps/worker/src/events/message/handlers/forward-inbound.ts`)
+  filtert en zet één job `forwardInbound` op de bestaande `webhook`-queue; hij gooit
+  nooit. Geen HTTP in de listener: de message-eventbus draait alle listeners van een batch
+  samen en zonder selectieve retry, dus een trage listener zou de batch (en bij timeout
+  alle listeners opnieuw) ophouden.
+- Job (`apps/worker/src/webhook/services/forward-inbound.ts`): laadt het bericht via
+  `messageService.findByIdWithUrls` (bijlagen met presigned URL's) en het contactkanaal,
+  bouwt de envelope en POST met 10 s timeout. jobId `chatbotx-inbound-<messageId>` (dedup;
+  voltooide job 24 u bewaard), 5 pogingen, exponentiële backoff vanaf 10 s. 5xx, 408, 429
+  en netwerkfouten: retry. Andere 4xx: `UnrecoverableError`, geen retry.
+- Envelope: vorm van de API-kanaal-callback (`event: "message_created"`, `timestamp`,
+  `contact{id,sourceId}`, `conversation{id}`, `message{id,sourceId,text,messageType,
+  contentType,attachments,contentAttributes,createdAt}`) plus `workspaceId`, `channel`,
+  `inboxId`. Headers `X-ChatbotX-Signature: sha256=<hex>` (HMAC-SHA256 over
+  `<timestamp>.<body>`, `signApiPayload`), `X-ChatbotX-Timestamp` (unix seconden),
+  `X-ChatbotX-Delivery: <message.id>` (stabiel per bericht, dedupbaar).
+- Config in de worker-container: `CHATBOTX_INBOUND_FORWARD_URL` (http/https),
+  `CHATBOTX_INBOUND_FORWARD_SECRET` (≥ 32 tekens), `CHATBOTX_INBOUND_FORWARD_CHANNELS`
+  (komma's, standaard `whatsapp`). Ontbreekt of ongeldig: niets doorsturen, één logregel
+  bij de start van de webhook-worker. De URL komt van de beheerder, niet van een tenant;
+  daarom geen `assertPublicUrl` (Unibox mag op het interne netwerk staan).
+- Logs bevatten alleen ids en statuscodes, nooit tekst, telefoonnummers of het geheim.
+- Geen migratie, geen nieuwe queue of tabel; de bestaande API-kanaal-callback en patch 5
+  zijn niet geraakt.
+
+Geraakte upstream-bestanden (uitsluitend toegevoegde regels, behalve de typeregel):
+
+| Bestand | Regels |
+|---|---|
+| `packages/worker-config/src/queues/webhook/index.ts` | +18 / -1 (`WebhookJobData` wordt een union) |
+| `apps/worker/src/events/message/listener.ts` | +7 |
+| `apps/worker/src/webhook/worker.ts` | +8 |
+| `apps/worker/src/env.ts` | +8 |
+| `integrations/api/package.json` | +1 (export `./lib/signature`) |
+| `.env.example` | +8 |
+
+Nieuwe fork-only bestanden: `apps/worker/src/events/message/handlers/forward-inbound.ts`,
+`.../forward-inbound-config.ts`, `apps/worker/src/webhook/services/forward-inbound.ts` en
+`apps/worker/__tests__/inbound-forward.test.ts`.
 
 ## Upstream bijwerken
 

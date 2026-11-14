@@ -21,6 +21,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
+    "./lib/signature": "./src/lib/signature.ts",
     "./**/*": "./src/**/*.ts"
   },
   "scripts": {

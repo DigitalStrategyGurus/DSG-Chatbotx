@@ -34,6 +34,7 @@ import type {
 import { EVENT_BUS_MESSAGE_ID } from "@chatbotx.io/event-bus"
 import { messageEventTypeSchema } from "@chatbotx.io/flow-config"
 import { logger } from "../../lib/logger"
+import { enqueueInboundForwards } from "./handlers/forward-inbound"
 import { recordProviderErrorLog } from "./handlers/record-provider-error-log"
 
 /**
@@ -417,6 +418,12 @@ export const messageListeners: Partial<MessageEvenTypeMap> = {
     {
       name: "ads-conversion-contact-replied",
       handler: enqueueContactRepliedEvaluations,
+    },
+    {
+      // DSG forkpatch 7: inbound messages to Unibox (enqueue only).
+      name: "inbound-forward",
+      handler: (payloads: MessageReceivedPayload[]) =>
+        enqueueInboundForwards(payloads),
     },
   ],
 }

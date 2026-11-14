@@ -10,6 +10,8 @@ import { queueNames } from "../../lib/types"
 
 export const WebhookJobAction = {
   evaluateWebhooks: "evaluateWebhooks",
+  // DSG forkpatch 7: forward an inbound channel message to Unibox.
+  forwardInbound: "forwardInbound",
 } as const
 
 export type WebhookJobEvaluate = {
@@ -23,7 +25,22 @@ export type WebhookJobEvaluate = {
   }
 }
 
-export type WebhookJobData = WebhookJobEvaluate
+/**
+ * DSG forkpatch 7. Carries only ids: the job loads the message itself so the
+ * queue never holds message content.
+ */
+export type WebhookJobForwardInbound = {
+  type: "forwardInbound"
+  data: {
+    workspaceId: string
+    channel: string
+    inboxId: string
+    messageId: string
+    messageCreatedAt: string
+  }
+}
+
+export type WebhookJobData = WebhookJobEvaluate | WebhookJobForwardInbound
 
 export const webhookQueue = isNoRedisEnv()
   ? fakeQueue
