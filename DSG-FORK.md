@@ -8,7 +8,7 @@ met prefix `forkpatch(<n>):` op een branch `dsg/v<upstream-versie>`.
 - Branch `dsg/v1.19.0` vanaf upstream-tag `v1.19.0`.
 - Tag `v1.19.0-dsg.<n>` start `release.yml`: quality gate (`ci.yml`), daarna images
   `ghcr.io/digitalstrategygurus/chatbotx-{builder,worker,realtime,mcp,javascript-executor}:1.19.0-dsg.<n>`.
-- De VPS bouwt niets; `infra/chatbotx/docker-compose.yml` in dsg-eHealth pint de tag.
+- De VPS bouwt niets; `infra/chatbotx/docker-compose.yml` in dsg-unibox pint de tag.
 
 ## Forkpatches
 
@@ -68,8 +68,9 @@ workspace-token aanmaakt.
   (die laatste twee slaat upstreams admin-flow ook over), en extra leden.
 - `/internal` staat in `PUBLIC_ROUTES` (geen sessie-redirect). De route mag nooit via
   Caddy of een ander publiek pad bereikbaar zijn: de reverse proxy weigert `/internal/*`.
-  Dat wordt in dsg-eHealth geborgd (Caddy-config en `infra/chatbotx/docker-compose.yml`;
-  alleen de Odaveth-API's praten over het interne Docker-netwerk met de builder).
+  Dat wordt geborgd in dsg-proxy (`sites/inbox-engine.odaveth.caddy`) en in dsg-unibox
+  (`infra/chatbotx/docker-compose.yml`; alleen diensten op het interne Docker-netwerk
+  `odaveth-provisioning` praten met de builder).
 - Vereist op de ChatbotX-VPS: `CHATBOTX_PROVISIONING_SECRET` (≥ 32 tekens) in de env van
   de builder-container. Geen migratie, geen wijziging in de worker.
 
