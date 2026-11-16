@@ -102,3 +102,13 @@ test("nested provisioning token recovery is public", () => {
     true,
   )
 })
+
+// DSG forkpatch 6: the WhatsApp exchange/connect routes are session-free too.
+test("nested provisioning WhatsApp routes are public", () => {
+  expect(
+    isPublicRoute("/internal/provisioning/workspaces/123/whatsapp/exchange"),
+  ).toBe(true)
+  expect(
+    isPublicRoute("/internal/provisioning/workspaces/123/whatsapp/connect"),
+  ).toBe(true)
+})

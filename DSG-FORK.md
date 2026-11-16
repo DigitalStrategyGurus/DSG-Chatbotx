@@ -17,6 +17,7 @@ met prefix `forkpatch(<n>):` op een branch `dsg/v<upstream-versie>`.
 | 0 | Publish- en labeler-workflows alleen in upstream (`github.repository`-guard) | dsg.0 |
 | 5 | Interne provisioning-API `POST /internal/provisioning/workspaces` (S19 ronde A) | dsg.1 |
 | 5b | Tokenherstel voor bestaande workspace (Unibox) | dsg.2 |
+| 6 | WhatsApp koppelen namens de eigenaar: code inwisselen en nummer koppelen (S27) | dsg.4 |
 | 7 | Inkomende kanaalberichten doorsturen naar Unibox (S20) | dsg.3 |
 
 ## Forkpatch 5: provisioning-API
@@ -184,6 +185,52 @@ Geraakte upstream-bestanden (uitsluitend toegevoegde regels, behalve de typerege
 Nieuwe fork-only bestanden: `apps/worker/src/events/message/handlers/forward-inbound.ts`,
 `.../forward-inbound-config.ts`, `apps/worker/src/webhook/services/forward-inbound.ts` en
 `apps/worker/__tests__/inbound-forward.test.ts`.
+
+## Forkpatch 6: WhatsApp koppelen namens de eigenaar (S27)
+
+Een praktijk doorloopt Embedded Signup in de browser van een afnemer (Odaveth). Unibox
+koppelt daarna het nummer aan de workspace van die praktijk, zonder ChatbotX-sessie.
+
+- **6a** `POST /internal/provisioning/workspaces/{workspaceId}/whatsapp/exchange`,
+  body `{code}`. Wisselt de code van de popup in met de platform-credential van de
+  eigenaar, **zonder `redirect_uri`** (een code uit de JS-SDK-popup krijgt er geen; zie
+  `integrations/whatsapp/src/api/auth.ts`). `200 {accessToken}`. De code leeft 30 s, dus
+  de route doet niets anders en bewaart niets. `404 workspace_not_found`, `503
+  whatsapp_credential_missing`, `422 code_exchange_rejected` (4xx van Meta), `502
+  meta_unavailable`.
+- **6b** `POST /internal/provisioning/workspaces/{workspaceId}/whatsapp/connect`, body
+  `{accessToken, wabaId, phoneNumberId, businessId, coexistence?}`. Roept
+  `connectWhatsappNumber` aan met de eigenaar van de workspace als `userId`. In een
+  niet-cloud-editie geeft `resolvePlatformOwnerId` die gebruiker terug en is de eigenaar
+  een echt lid, dus alle bestaande controles gelden ongewijzigd. Met een expliciet
+  `phoneNumberId` slaat de fork de keuzesessie over. `coexistence: true` wordt de
+  bestaande intentie `connectExisting`.
+  - Idempotent per nummer: de fork meldt elk gekoppeld nummer als `duplicated`; 6b zoekt
+    het dan op in deze workspace en antwoordt `200` met `alreadyConnected: true`, of `409
+    phone_number_in_other_workspace`.
+  - `422 connect_rejected` = stoppen (de praktijk moet opnieuw beginnen); `502
+    connect_failed` = later opnieuw proberen met hetzelfde token.
+- Auth, `Cache-Control: no-store`, `405` en het niet-loggen van bodies zijn gelijk aan
+  patch 5b. Geen migratie.
+- Credit line: de fork deelt die alleen als de platform-credential een Business ID heeft
+  (`connect-number.ts`, `setupOAuthResources`). DSG is tech provider en deelt geen
+  credit line: **laat Business ID in de platform-credential leeg.** De praktijk betaalt
+  Meta zelf.
+
+Geraakte upstream-bestanden (uitsluitend toegevoegde regels):
+
+| Bestand | Regels |
+|---|---|
+| `packages/database/src/repositories/integration-whatsapp/repository.ts` | +23 / -0 |
+| `packages/business/src/integration-whatsapp/service.ts` | +8 / -0 |
+| `apps/builder/__tests__/proxy-public-routes.test.ts` | +10 / -0 |
+
+Nieuwe fork-only bestanden: de routes onder
+`apps/builder/src/app/internal/provisioning/workspaces/[workspaceId]/whatsapp/`,
+`apps/builder/src/features/provisioning/lib/whatsapp-connect.ts`,
+`apps/builder/src/features/provisioning/schema/whatsapp-requests.ts`,
+`apps/builder/__tests__/internal-provisioning-whatsapp-routes.test.ts` en
+`apps/builder/__tests__/internal-provisioning-whatsapp-lib.test.ts`.
 
 ## Upstream bijwerken
 
