@@ -208,6 +208,29 @@ class IntegrationWhatsappRepository {
   }
 
   /**
+   * DSG forkpatch 6: the integration that holds `phoneNumberId` in this
+   * workspace, or null. `phoneNumberId` is unique platform-wide, so a null
+   * result for a number that is connected means another workspace holds it.
+   */
+  async findByPhoneNumberIdForWorkspace(
+    input: { phoneNumberId: string; workspaceId: string },
+    tx: DatabaseClient = db,
+  ): Promise<IntegrationWhatsappModel | null> {
+    const [row] = await tx
+      .select()
+      .from(integrationWhatsappModel)
+      .where(
+        and(
+          eq(integrationWhatsappModel.phoneNumberId, input.phoneNumberId),
+          eq(integrationWhatsappModel.workspaceId, input.workspaceId),
+        ),
+      )
+      .limit(1)
+
+    return row ?? null
+  }
+
+  /**
    * No workspace scope — for inbound webhook handlers that only know the
    * integration id from the URL.
    */

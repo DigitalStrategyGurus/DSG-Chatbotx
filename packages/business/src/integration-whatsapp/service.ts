@@ -348,6 +348,14 @@ class IntegrationWhatsappService extends BaseService {
     return integrationWhatsappRepository.findByIdForWorkspace(input)
   }
 
+  /** DSG forkpatch 6: see the repository method of the same name. */
+  findByPhoneNumberIdForWorkspace(input: {
+    phoneNumberId: string
+    workspaceId: string
+  }): Promise<IntegrationWhatsappModel | null> {
+    return integrationWhatsappRepository.findByPhoneNumberIdForWorkspace(input)
+  }
+
   findWorkspaceIntegration(
     input: FindWorkspaceIntegrationInput,
   ): Promise<IntegrationWhatsappModel | null> {
